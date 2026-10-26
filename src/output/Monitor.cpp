@@ -416,7 +416,7 @@ void CMonitor::onDisconnect(bool destroy) {
 
     // remove mirror
     if (m_mirrorOf) {
-        m_mirrorOf->m_mirrors.erase(std::ranges::find_if(m_mirrorOf->m_mirrors, [&](const auto& other) { return other == m_self; }));
+        std::erase_if(m_mirrorOf->m_mirrors, [&](const auto& other) { return !other || other == m_self; });
 
         // unlock software for mirrored monitor
         Pointer::mgr()->unlockSoftwareForMonitor(m_mirrorOf.lock());
@@ -424,9 +424,13 @@ void CMonitor::onDisconnect(bool destroy) {
     }
 
     if (!m_mirrors.empty()) {
-        for (auto const& m : m_mirrors) {
-            m->setMirror("");
+        // setMirror("") erases from m_mirrors, so iterate over a copy
+        const auto MIRRORS = m_mirrors;
+        for (auto const& m : MIRRORS) {
+            if (const auto PMIRROR = m.lock())
+                PMIRROR->setMirror("");
         }
+        m_mirrors.clear();
 
         Config::monitorRuleMgr()->scheduleReload();
     }
@@ -1271,7 +1275,7 @@ void CMonitor::setMirror(const std::string& mirrorOf) {
         // disable mirroring
 
         if (m_mirrorOf) {
-            m_mirrorOf->m_mirrors.erase(std::ranges::find_if(m_mirrorOf->m_mirrors, [&](const auto& other) { return other == m_self; }));
+            std::erase_if(m_mirrorOf->m_mirrors, [&](const auto& other) { return !other || other == m_self; });
 
             // unlock software for mirrored monitor
             Pointer::mgr()->unlockSoftwareForMonitor(m_mirrorOf.lock());

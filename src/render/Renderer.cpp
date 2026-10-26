@@ -3087,11 +3087,13 @@ void IHyprRenderer::damageRegion(const CRegion& rg) {
 }
 
 void IHyprRenderer::damageMirrorsWith(PHLMONITOR pMonitor, const CRegion& pRegion) {
-    for (auto const& mirror : pMonitor->m_mirrors) {
+    for (auto const& mirrorRef : pMonitor->m_mirrors) {
+        // a mirror may have been disconnected while a frame for its source was still in flight
+        const auto monitor = mirrorRef.lock();
+        if (!monitor)
+            continue;
 
         // transform the damage here, so it won't get clipped by the monitor damage ring
-        auto    monitor = mirror;
-
         CRegion transformed{pRegion};
 
         // we want to transform to the same box as in CHyprOpenGLImpl::renderMirrored
@@ -3103,10 +3105,8 @@ void IHyprRenderer::damageMirrorsWith(PHLMONITOR pMonitor, const CRegion& pRegio
         transformed.scale(scale);
         transformed.translate(Vector2D(monbox.x, monbox.y));
 
-        mirror->addDamage(transformed);
-
-        if (auto m = mirror.lock())
-            m->scheduleFrame(Aquamarine::IOutput::AQ_SCHEDULE_DAMAGE);
+        monitor->addDamage(transformed);
+        monitor->scheduleFrame(Aquamarine::IOutput::AQ_SCHEDULE_DAMAGE);
     }
 }
 
